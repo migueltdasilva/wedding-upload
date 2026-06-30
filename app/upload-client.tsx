@@ -15,7 +15,7 @@ interface FileEntry {
 }
 
 // ── Constants ──
-const CHUNK_SIZE = 8 * 1024 * 1024       // 8 MB
+const CHUNK_SIZE = 4 * 1024 * 1024       // 4 MB — Vercel body limit
 const MAX_CONCURRENT = 2
 const MAX_FILE_BYTES = 4 * 1024 * 1024 * 1024 // 4 GB
 const ACCEPTED = 'image/*,video/*,.heic,.heif,.mov,.mp4,.avi,.mkv,.m4v,.3gp,.mts,.webm'
@@ -51,12 +51,24 @@ function plural(n: number, one: string, few: string, many: string): string {
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
 
-async function queryResumable(uri: string, total: number): Promise<number> {
+// Chunks go through our /api/upload-chunk proxy to avoid CORS issues
+async function proxyChunk(
+  sessionUri: string,
+  contentRange: string,
+  contentType: string,
+  body?: ArrayBuffer,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    'X-Session-Uri': sessionUri,
+    'X-Content-Type': contentType,
+    'Content-Range': contentRange,
+  }
+  return fetch('/api/upload-chunk', { method: 'PUT', headers, body })
+}
+
+async function queryResumable(sessionUri: string, total: number): Promise<number> {
   try {
-    const res = await fetch(uri, {
-      method: 'PUT',
-      headers: { 'Content-Range': `bytes */${total}` },
-    })
+    const res = await proxyChunk(sessionUri, `bytes */${total}`, 'application/octet-stream')
     if (res.status === 308) {
       const range = res.headers.get('Range')
       if (range) {
@@ -80,25 +92,17 @@ async function uploadChunked(
   const total = file.size
   let retries = 0
   const MAX_RETRIES = 5
+  const ct = file.type || 'application/octet-stream'
 
   while (offset < total) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
 
     const end = Math.min(offset + CHUNK_SIZE, total) - 1
-    const chunk = file.slice(offset, end + 1)
-    const ct = file.type || 'application/octet-stream'
+    const chunkBuf = await file.slice(offset, end + 1).arrayBuffer()
 
     let res: Response
     try {
-      res = await fetch(sessionUri, {
-        method: 'PUT',
-        headers: {
-          'Content-Range': `bytes ${offset}-${end}/${total}`,
-          'Content-Type': ct,
-        },
-        body: chunk,
-        signal,
-      })
+      res = await proxyChunk(sessionUri, `bytes ${offset}-${end}/${total}`, ct, chunkBuf)
     } catch (err) {
       if (signal.aborted) throw err
       retries++

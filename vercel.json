@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "app/api/upload-chunk/route.ts": { "maxDuration": 60 },
+    "app/api/create-upload/route.ts": { "maxDuration": 30 }
+  }
+}
