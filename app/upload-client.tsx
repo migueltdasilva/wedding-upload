@@ -327,7 +327,7 @@ export default function UploadClient({ passcodeEnabled }: Props) {
         <div className="card passcode-card">
           <span className="hearts">💕</span>
           <h1 className="title">Аня & Никита</h1>
-          <p className="subtitle">28 июня 2026</p>
+          <p className="subtitle">28 июня 2026 г.</p>
           <form onSubmit={handlePasscode} className="passcode-form">
             <p className="passcode-hint">Введи кодовое слово, чтобы войти</p>
             <input
