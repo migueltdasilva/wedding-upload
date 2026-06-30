@@ -166,6 +166,16 @@ export default function UploadClient({ passcodeEnabled }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
+  // Restore passcode from localStorage on first load
+  useEffect(() => {
+    if (!passcodeEnabled) return
+    const saved = localStorage.getItem('wedding_passcode')
+    if (saved) {
+      setSavedPasscode(saved)
+      setStep('upload')
+    }
+  }, [passcodeEnabled])
+
   // Transition to done when all files complete
   useEffect(() => {
     if (files.length > 0 && files.every(f => f.status === 'done') && !isUploading) {
@@ -232,6 +242,7 @@ export default function UploadClient({ passcodeEnabled }: Props) {
       })
       if (res.ok) {
         setSavedPasscode(passcodeInput)
+        localStorage.setItem('wedding_passcode', passcodeInput)
         setStep('upload')
       } else {
         const data = await res.json().catch(() => ({}))
@@ -280,6 +291,7 @@ export default function UploadClient({ passcodeEnabled }: Props) {
           filename: entry.file.name,
           mimeType: entry.file.type || '',
           fileSize: entry.file.size,
+          fileCreatedAt: entry.file.lastModified,
           guestName: name.trim() || undefined,
           passcode: passcode || undefined,
         }),

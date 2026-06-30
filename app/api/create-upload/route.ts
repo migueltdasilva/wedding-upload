@@ -22,7 +22,7 @@ async function getAccessToken(): Promise<string> {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { filename, mimeType, fileSize, guestName, passcode, validateOnly } = body
+    const { filename, mimeType, fileSize, fileCreatedAt, guestName, passcode, validateOnly } = body
 
     // Passcode check
     const required = process.env.UPLOAD_PASSCODE
@@ -60,14 +60,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Файл слишком большой' }, { status: 400 })
     }
 
-    // Build filename: "Гость — оригинальное имя — 2026-06-28 14:30:00.ext"
-    const ts = new Date()
+    // Prefer file's own creation time (shooting date) for chronological sorting in Drive
+    const shootDate = fileCreatedAt
+      ? new Date(fileCreatedAt as number)
+      : new Date()
+    const shootTs = shootDate
       .toISOString()
       .replace('T', ' ')
-      .slice(0, 19)
-    const safeName = (guestName as string | undefined)?.trim()
-      ? `${(guestName as string).trim()} — ${filename} — ${ts}`
-      : `${filename} — ${ts}`
+      .replace(/:/g, '-')
+      .slice(0, 19)  // "2026-06-28 14-30-00"
+
+    // Build filename: "2026-06-28 14-30-00 — Гость — оригинальное имя"
+    const guest = (guestName as string | undefined)?.trim()
+    const safeName = guest
+      ? `${shootTs} — ${guest} — ${filename}`
+      : `${shootTs} — ${filename}`
 
     const accessToken = await getAccessToken()
 
